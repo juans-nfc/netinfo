@@ -1,0 +1,61 @@
+# Copy to config.yaml and edit. Keep config.yaml OUT of version control.
+# Better than plaintext here: SSH keys, environment variables, or a secrets
+# vault. See the security note in the README.
+
+database: inventory.db
+
+# Active Directory is your authoritative device list in a Windows/AD shop.
+# A plain read-only domain account is enough to enumerate computer objects.
+active_directory:
+  server: "dc01.corp.example.com"   # any domain controller
+  domain: "corp.example.com"        # base_dn is derived from this if omitted
+  netbios: "CORP"                   # pre-Windows-2000 domain name
+  user: "svc-inventory"
+  password: "CHANGE_ME"
+  use_ssl: false                    # true = LDAPS/636 (recommended)
+  # base_dn: "OU=Computers,DC=corp,DC=example,DC=com"   # narrow the search
+
+collection:
+  workers: 20                       # parallel collectors (fine for 100-500 hosts)
+  software: true                    # also inventory installed software (Win/Linux)
+
+# One entry per subnet you want scanned. Remote sites reached over the
+# site-to-site VPN work fine as long as the collector has L3 reachability.
+subnets:
+  - 192.168.10.0/24      # HQ user LAN
+  - 192.168.20.0/24      # HQ servers
+  - 10.50.0.0/24         # remote site over VPN
+
+discovery:
+  timeout: 0.6           # seconds per TCP probe
+  concurrency: 256       # simultaneous probes
+
+credentials:
+  # Windows via WinRM (enable fleet-wide with a GPO - see README). Use the same
+  # read-only domain service account as the AD block above.
+  windows:
+    user: "CORP\\svc-inventory"
+    password: "CHANGE_ME"
+    transport: ntlm      # ntlm (simplest in AD) | kerberos | basic
+    use_ssl: false       # true = WinRM over 5986/HTTPS (recommended)
+
+  # Linux/Unix via SSH. Prefer key_file over password.
+  linux:
+    user: "svc-inventory"
+    key_file: "/home/you/.ssh/inventory_ed25519"
+    # password: "CHANGE_ME"   # used only if key_file is omitted
+
+  # SNMP for switches/routers/firewalls/printers. v3 strongly preferred.
+  # MikroTik: /snmp set enabled=yes  +  add an SNMP community.
+  # Ubiquiti: enable SNMP in the UniFi/EdgeMax settings (or use the Controller
+  #           API for far richer per-client data - see README).
+  snmp:
+    version: "2c"        # "2c" or "3"
+    community: "public"  # v2c only - change this on your gear!
+    # --- v3 fields (used when version: "3") ---
+    # user: "invmon"
+    # level: authPriv          # noAuthNoPriv | authNoPriv | authPriv
+    # auth_proto: SHA
+    # auth_key: "CHANGE_ME"
+    # priv_proto: AES
+    # priv_key: "CHANGE_ME"

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %} · software{% endblock %}
+{% block content %}
+<div class="metrics" id="metrics"></div>
+
+<div class="controls">
+  <button class="tab on" data-f="all" onclick="setFilter(this)">All</button>
+  <button class="tab" data-f="multi" onclick="setFilter(this)">Multiple versions</button>
+  <button class="tab" data-f="new" onclick="setFilter(this)">New this week</button>
+  <div class="spacer"></div>
+  <div class="search"><input id="q" oninput="render()" placeholder="Search package or publisher"></div>
+</div>
+
+<div class="panel">
+  <table>
+    <thead><tr>
+      <th style="width:30px"></th><th style="width:210px">Package</th>
+      <th style="width:150px">Publisher</th><th style="width:70px">Installs</th>
+      <th style="width:120px">Versions</th><th style="width:96px">Last seen</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">No packages match.</div>
+</div>
+<div class="note">Names from different sources aren't merged yet — e.g. <span class="mono">7-Zip</span> (Windows registry) and <span class="mono">7zip</span> (dpkg) count separately until a name-mapping table is added.</div>
+{% endblock %}
+
+{% block script %}
+<script>
+let PKGS=[], curFilter='all';
+const WEEK=7*24*3600*1000;
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function isNew(p){ return p.first_seen && (Date.now()-new Date(p.first_seen).getTime()) < WEEK; }
+
+async function load(){
+  const stats=await (await fetch('/api/stats')).json();
+  PKGS=await (await fetch('/api/software')).json();
+  const multi=PKGS.filter(p=>p.versions>1).length;
+  document.getElementById('metrics').innerHTML=[
+    ['Unique packages',stats.unique_software,''],
+    ['Total installs',stats.total_installs,''],
+    ['Multiple versions',multi,'s-silent'],
+    ['New this week',PKGS.filter(isNew).length,'s-online'],
+  ].map(m=>`<div class="metric"><div class="lbl">${m[0]}</div><div class="val ${m[2]}">${m[1]}</div></div>`).join('');
+  render();
+}
+function setFilter(b){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));b.classList.add('on');curFilter=b.dataset.f;render();}
+function render(){
+  const q=(document.getElementById('q').value||'').toLowerCase().trim();
+  const rows=PKGS.filter(p=>{
+    const okF = curFilter==='all' || (curFilter==='multi'&&p.versions>1) || (curFilter==='new'&&isNew(p));
+    const hay=((p.name||'')+' '+(p.publisher||'')).toLowerCase();
+    return okF && (!q||hay.includes(q));
+  });
+  document.getElementById('tbody').innerHTML=rows.map((p,i)=>{
+    const ver = p.versions>1 ? `<span class="pill p-warning">${p.versions} versions</span>` : `<span class="muted mono">1 version</span>`;
+    const nb = isNew(p) ? ' <span class="pill p-success">new</span>' : '';
+    const last = p.last_seen ? new Date(p.last_seen).toLocaleDateString() : '—';
+    return `<tr class="row" data-name="${esc(p.name)}" onclick="toggle(this)">
+      <td><span class="chev">▸</span></td>
+      <td>${esc(p.name)}${nb}</td>
+      <td class="sub">${esc(p.publisher||'—')}</td>
+      <td>${p.installs}</td><td>${ver}</td><td class="muted">${last}</td></tr>`;
+  }).join('');
+  document.getElementById('empty').style.display=rows.length?'none':'block';
+}
+async function toggle(tr){
+  const nxt=tr.nextElementSibling;
+  if(tr.classList.contains('open')){ tr.classList.remove('open'); if(nxt&&nxt.classList.contains('drill'))nxt.remove(); return; }
+  tr.classList.add('open');
+  const name=tr.dataset.name;
+  const hosts=await (await fetch('/api/software/find?q='+encodeURIComponent(name))).json();
+  const byVer={};
+  hosts.forEach(h=>{ (byVer[h.version||'—']=byVer[h.version||'—']||[]).push(h); });
+  const spread=Object.keys(byVer).sort().reverse().map(v=>`<span class="pill p-plain mono">${esc(v)} · ${byVer[v].length}</span>`).join(' ');
+  const list=hosts.map(h=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)">
+     <span>${esc(h.hostname||h.ip)}</span><span class="mono muted">${esc(h.version||'—')}</span></div>`).join('');
+  tr.insertAdjacentHTML('afterend',
+    `<tr class="drill"><td colspan="6" style="background:var(--surface-1);padding:10px 16px 14px">
+       <div style="margin-bottom:8px">${spread}</div>${list}</td></tr>`);
+}
+window.reload=load;
+load();
+</script>
+{% endblock %}

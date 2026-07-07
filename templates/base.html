@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>netinv{% block title %}{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">netinv <small id="lastscan">loading…</small></div>
+    <nav class="nav">
+      <a href="/" class="{{ 'on' if active=='devices' }}">Devices</a>
+      <a href="/software" class="{{ 'on' if active=='software' }}">Software</a>
+    </nav>
+    <div class="spacer"></div>
+    <span id="scanstate" class="scaninfo"></span>
+    <button id="scanbtn" class="btn" onclick="startScan()">Run scan</button>
+  </div>
+  {% block content %}{% endblock %}
+</div>
+<script>
+async function refreshScan(){
+  try{
+    const s = await (await fetch('/api/scan')).json();
+    const btn=document.getElementById('scanbtn'), st=document.getElementById('scanstate');
+    if(s.running){ btn.disabled=true; btn.textContent='Scanning…'; st.textContent='scan in progress'; }
+    else{
+      btn.disabled=false; btn.textContent='Run scan';
+      if(s.finished){ st.textContent = 'last scan '+(s.returncode===0?'ok':'exit '+s.returncode); }
+      else st.textContent='';
+    }
+    return s.running;
+  }catch(e){ return false; }
+}
+async function startScan(){
+  const r = await fetch('/api/scan',{method:'POST'});
+  if(r.status===400){ alert('No config.yaml yet — copy config.example.yaml, add credentials, and retry.'); return; }
+  poll();
+}
+let pollTimer=null;
+function poll(){
+  clearInterval(pollTimer);
+  pollTimer=setInterval(async()=>{ const running=await refreshScan(); if(!running){ clearInterval(pollTimer); if(window.reload) window.reload(); } },2000);
+}
+async function loadLast(){
+  try{ const s=await (await fetch('/api/stats')).json();
+    document.getElementById('lastscan').textContent = s.last_scan ? ('· last scan '+new Date(s.last_scan).toLocaleString()) : '· no scans yet';
+  }catch(e){}
+}
+refreshScan(); loadLast();
+</script>
+{% block script %}{% endblock %}
+</body>
+</html>
