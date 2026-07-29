@@ -163,7 +163,7 @@ cmd_deploy() {
   "${DC[@]}" build
 
   log "Starting stack…"
-  "${DC[@]}" up -d
+  "${DC[@]}" up -d --force-recreate
 
   wait_healthy
 

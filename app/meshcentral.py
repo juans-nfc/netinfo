@@ -113,25 +113,43 @@ class MeshCentralClient:
             )
 
     async def _request(self, action_out: str, action_in: str, payload: dict | None = None,
-                       timeout: int = 25) -> dict:
-        """Send one action and wait for the first reply whose action matches."""
-        async with await self._connect() as ws:
-            msg = {"action": action_out}
-            if payload:
-                msg.update(payload)
-            await ws.send(json.dumps(msg))
-            deadline = asyncio.get_event_loop().time() + timeout
-            while True:
-                remaining = deadline - asyncio.get_event_loop().time()
-                if remaining <= 0:
-                    raise TimeoutError(f"no '{action_in}' reply within {timeout}s")
-                raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
-                try:
-                    data = json.loads(raw)
-                except json.JSONDecodeError:
+                       timeout: int = 25, retries: int = 2) -> dict:
+        """Send one action and wait for the first reply whose action matches.
+
+        Reconnects and retries if the socket drops (e.g. code 1005 when the
+        connection is severed mid-request, which we saw when a scan-time
+        firewall block cut the link to MeshCentral). Retries only cover
+        transient connection failures, not a genuinely absent reply.
+        """
+        last_exc: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                async with await self._connect() as ws:
+                    msg = {"action": action_out}
+                    if payload:
+                        msg.update(payload)
+                    await ws.send(json.dumps(msg))
+                    deadline = asyncio.get_event_loop().time() + timeout
+                    while True:
+                        remaining = deadline - asyncio.get_event_loop().time()
+                        if remaining <= 0:
+                            raise TimeoutError(f"no '{action_in}' reply within {timeout}s")
+                        raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
+                        try:
+                            data = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if data.get("action") == action_in:
+                            return data
+            except (websockets.ConnectionClosed, OSError) as exc:
+                last_exc = exc
+                if attempt < retries:
+                    log.warning("MeshCentral connection dropped (%s); retrying %d/%d",
+                                exc, attempt + 1, retries)
+                    await asyncio.sleep(2 * (attempt + 1))
                     continue
-                if data.get("action") == action_in:
-                    return data
+                raise
+        raise last_exc  # pragma: no cover
 
     async def test(self) -> dict:
         """Verify connectivity/credentials via serverinfo."""

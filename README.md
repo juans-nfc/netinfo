@@ -207,7 +207,7 @@ progress.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `NETVIEW_ROOT_PATH` | `` | **Leave empty** — the bundled nginx snippet strips the prefix and the UI uses relative URLs. Only set it if your nginx does *not* strip the prefix (see Troubleshooting) |
+| `NETVIEW_ROOT_PATH` | `` | Set to `/netinfo` when served under that sub-path |
 | `NETVIEW_PORT` | `8850` | Bind port (host networking) |
 | `NETVIEW_SECRET_KEY` | *(none)* | **Set this.** Encrypts stored credentials |
 | `NETVIEW_UI_USER` / `_PASSWORD` | *(none)* | Optional HTTP basic auth for the UI |
@@ -259,25 +259,6 @@ override the `.env` values, so you can change targets without redeploying.
   engine URL in `app/database.py` for Postgres if you ever outgrow it.
 
 ---
-
-## Troubleshooting
-
-**The page loads but has no styling; CSS/JS 404 under the sub-path**
-(`GET /netinfo/static/style.css → 404`). The prefix is being handled twice.
-The bundled nginx snippet **strips** the sub-path (its `proxy_pass` ends in a
-trailing slash), so `NETVIEW_ROOT_PATH` must be **empty** — otherwise the app
-looks for static files under a prefix nginx already removed. Fix: set
-`NETVIEW_ROOT_PATH=` (empty) in `.env`, `./deploy.sh`, then hard-refresh the
-browser (Ctrl/Cmd-Shift-R) to clear the cached 404s.
-
-The two valid combinations are:
-
-| nginx `proxy_pass` | `NETVIEW_ROOT_PATH` |
-|---|---|
-| `http://127.0.0.1:8850/` (trailing slash → strips prefix) — **the bundled snippet** | *empty* |
-| `http://127.0.0.1:8850` (no trailing slash → keeps prefix) | `/netinfo` |
-
-Mixing them (prefix set **and** stripped) is the cause of the 404 above.
 
 ## Development (without Docker)
 

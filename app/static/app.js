@@ -383,6 +383,19 @@ function startPolling() {
   pollTimer = setInterval(pollStatus, 1500);
 }
 
+const recorrBtn = $("#recorrelateBtn");
+if (recorrBtn) recorrBtn.addEventListener("click", async () => {
+  recorrBtn.disabled = true;
+  const prev = recorrBtn.textContent;
+  recorrBtn.textContent = "Matching…";
+  try {
+    const r = await api("scan/recorrelate", { method: "POST" });
+    if (r.ok) { toast(`MeshCentral: ${r.correlated} of ${r.nodes} nodes matched`); loadDevices(); }
+    else toast("MeshCentral: " + (r.error || "failed"), true);
+  } catch (e) { toast("Failed: " + e.message, true); }
+  finally { recorrBtn.disabled = false; recorrBtn.textContent = prev; }
+});
+
 async function loadHistory() {
   let rows;
   try { rows = await api("scan/history"); } catch (_) { return; }
