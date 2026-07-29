@@ -30,7 +30,7 @@ device keeps one record across scans even when its IP changes.
 
 ```
                           ┌─────────────────────────────────────────┐
-   Browser ── /netview ──▶│ nginx (tools.northernfruit.com)          │
+   Browser ── /netinfo ──▶│ nginx (tools.northernfruit.com)          │
                           └───────────────┬─────────────────────────┘
                                           │ proxy_pass 127.0.0.1:8850
                           ┌───────────────▼─────────────────────────┐
@@ -53,13 +53,30 @@ VPN and read MACs off the local segment.
 
 ```bash
 git clone <this repo> netview && cd netview
-cp .env.example .env
-# edit .env: set NETVIEW_SECRET_KEY, subnets, and MeshCentral creds
-nano .env
-
-docker compose up -d --build
-docker compose logs -f          # watch it come up
+./deploy.sh
 ```
+
+`deploy.sh` is the one-command deploy: it creates `.env` from the example on
+first run, generates `NETVIEW_SECRET_KEY` for you if it's blank, builds the
+image, starts the stack, and waits for the health check to pass before
+reporting success. Re-run it any time to redeploy. Other subcommands:
+
+```bash
+./deploy.sh status     # container + health status
+./deploy.sh logs       # follow logs
+./deploy.sh rollback   # revert to the previous image (kept automatically)
+./deploy.sh down       # stop the stack
+```
+
+Before your first scan, open `.env` (or the UI **Settings** tab) to set your
+subnets and MeshCentral credentials:
+
+```bash
+nano .env && ./deploy.sh    # re-run to apply .env changes
+```
+
+If you'd rather drive compose directly, `docker compose up -d --build` still
+works.
 
 Then wire it into nginx on `tools.northernfruit.com` — copy the block from
 [`nginx-netview.conf.example`](./nginx-netview.conf.example) into that server
@@ -69,7 +86,7 @@ block and reload:
 nginx -t && systemctl reload nginx
 ```
 
-Open **https://tools.northernfruit.com/netview/**, go to **Settings** to confirm
+Open **https://tools.northernfruit.com/netinfo/**, go to **Settings** to confirm
 your subnets and MeshCentral connection, add scan credentials under
 **Credentials**, then hit **Run scan**.
 
@@ -190,7 +207,7 @@ progress.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `NETVIEW_ROOT_PATH` | `` | Set to `/netview` when served under that sub-path |
+| `NETVIEW_ROOT_PATH` | `` | **Leave empty** — the bundled nginx snippet strips the prefix and the UI uses relative URLs. Only set it if your nginx does *not* strip the prefix (see Troubleshooting) |
 | `NETVIEW_PORT` | `8850` | Bind port (host networking) |
 | `NETVIEW_SECRET_KEY` | *(none)* | **Set this.** Encrypts stored credentials |
 | `NETVIEW_UI_USER` / `_PASSWORD` | *(none)* | Optional HTTP basic auth for the UI |
@@ -242,6 +259,25 @@ override the `.env` values, so you can change targets without redeploying.
   engine URL in `app/database.py` for Postgres if you ever outgrow it.
 
 ---
+
+## Troubleshooting
+
+**The page loads but has no styling; CSS/JS 404 under the sub-path**
+(`GET /netinfo/static/style.css → 404`). The prefix is being handled twice.
+The bundled nginx snippet **strips** the sub-path (its `proxy_pass` ends in a
+trailing slash), so `NETVIEW_ROOT_PATH` must be **empty** — otherwise the app
+looks for static files under a prefix nginx already removed. Fix: set
+`NETVIEW_ROOT_PATH=` (empty) in `.env`, `./deploy.sh`, then hard-refresh the
+browser (Ctrl/Cmd-Shift-R) to clear the cached 404s.
+
+The two valid combinations are:
+
+| nginx `proxy_pass` | `NETVIEW_ROOT_PATH` |
+|---|---|
+| `http://127.0.0.1:8850/` (trailing slash → strips prefix) — **the bundled snippet** | *empty* |
+| `http://127.0.0.1:8850` (no trailing slash → keeps prefix) | `/netinfo` |
+
+Mixing them (prefix set **and** stripped) is the cause of the 404 above.
 
 ## Development (without Docker)
 
