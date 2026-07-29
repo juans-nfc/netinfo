@@ -1,0 +1,29 @@
+# NetView reverse-proxy snippet for tools.northernfruit.com/netview
+#
+# Drop this inside the existing `server { ... }` block for tools.northernfruit.com
+# (or include it). The trailing slash on proxy_pass strips the /netview prefix so
+# the app receives /api/... directly, which is what NETVIEW_ROOT_PATH expects.
+
+# Redirect the bare path to the trailing-slash form so relative asset/API URLs
+# resolve correctly.
+location = /netview {
+    return 308 /netview/;
+}
+
+location /netview/ {
+    proxy_pass         http://127.0.0.1:8850/;
+    proxy_http_version 1.1;
+
+    # WebSocket upgrade (used by the MeshCentral test/back-channel if extended)
+    proxy_set_header   Upgrade    $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   X-Forwarded-Prefix /netview;
+
+    proxy_read_timeout 300s;   # allow long-running scans triggered via the API
+    client_max_body_size 8m;
+}

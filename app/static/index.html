@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetView — Network Inventory</title>
+  <link rel="stylesheet" href="static/style.css" />
+</head>
+<body>
+  <header class="chrome">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div class="brand-text">
+        <span class="brand-name">NetView</span>
+        <span class="brand-tag">agentless inventory</span>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-tab="inventory" class="active">Inventory</button>
+      <button data-tab="scans">Scans</button>
+      <button data-tab="credentials">Credentials</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+    <div class="chrome-right">
+      <div class="scan-pill" id="scanPill" title="Scan status">
+        <span class="dot"></span><span class="label">idle</span>
+      </div>
+      <button class="btn primary" id="runScanBtn">Run scan</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Inventory -->
+    <section class="panel" data-panel="inventory">
+      <div class="toolbar">
+        <input type="search" id="searchBox" placeholder="Search host, IP, MAC, vendor, OS…" />
+        <div class="chips" id="typeChips"></div>
+        <select id="siteFilter"><option value="">All sites</option></select>
+        <label class="switch"><input type="checkbox" id="onlineOnly" /> Online only</label>
+        <div class="spacer"></div>
+        <span class="count" id="deviceCount">—</span>
+        <a class="btn ghost" href="api/devices/export.csv">Export CSV</a>
+      </div>
+      <div class="table-wrap">
+        <table class="grid" id="deviceTable">
+          <thead>
+            <tr>
+              <th></th><th>Host</th><th>IP address</th><th>Type</th><th>Operating system</th>
+              <th>Vendor</th><th>Site</th><th>Open ports</th><th>Mesh</th><th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody id="deviceRows"></tbody>
+        </table>
+        <div class="empty" id="deviceEmpty" hidden>
+          <p>No devices yet.</p>
+          <p class="muted">Configure subnets and credentials, then run a scan.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scans -->
+    <section class="panel" data-panel="scans" hidden>
+      <div class="scan-live" id="scanLive">
+        <div class="scan-live-head">
+          <h2>Current scan</h2>
+          <span class="state-badge" id="liveState">idle</span>
+        </div>
+        <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+        <p class="scan-msg" id="scanMsg">No scan running.</p>
+      </div>
+      <h2 class="section-title">History</h2>
+      <table class="grid" id="historyTable">
+        <thead><tr><th>Started</th><th>Trigger</th><th>Status</th><th>Found</th><th>Probed</th><th>Duration</th><th>Subnets</th></tr></thead>
+        <tbody id="historyRows"></tbody>
+      </table>
+    </section>
+
+    <!-- Credentials -->
+    <section class="panel" data-panel="credentials" hidden>
+      <div class="two-col">
+        <div>
+          <h2 class="section-title">Stored credentials</h2>
+          <table class="grid" id="credTable">
+            <thead><tr><th>Name</th><th>Kind</th><th>Identity</th><th>Enabled</th><th></th></tr></thead>
+            <tbody id="credRows"></tbody>
+          </table>
+          <p class="muted small">Secrets are encrypted at rest and never shown again after saving.</p>
+        </div>
+        <div class="card">
+          <h2 class="section-title" id="credFormTitle">Add credential</h2>
+          <label>Type
+            <select id="credKind">
+              <option value="windows">Windows (WMI)</option>
+              <option value="ssh">SSH (Linux/Unix)</option>
+              <option value="snmp">SNMP</option>
+            </select>
+          </label>
+          <label>Name <input id="credName" placeholder="e.g. Domain scanner account" /></label>
+          <div data-cred-group="windows ssh">
+            <label data-cred-group="windows">Domain <input id="credDomain" placeholder="NORTHERNFRUIT" /></label>
+            <label>Username <input id="credUser" placeholder="svc-netview" /></label>
+            <label id="secretLabel">Password
+              <input id="credSecret" type="password" placeholder="••••••••" />
+            </label>
+            <p class="muted small" data-cred-group="ssh">For key auth, paste a PEM private key into the field above instead of a password.</p>
+          </div>
+          <div data-cred-group="snmp">
+            <label>Version
+              <select id="credSnmpVer"><option value="v2c">v2c</option><option value="v1">v1</option></select>
+            </label>
+            <label>Community <input id="credCommunity" type="password" placeholder="public" /></label>
+          </div>
+          <label class="switch"><input type="checkbox" id="credEnabled" checked /> Enabled</label>
+          <div class="form-actions">
+            <button class="btn primary" id="credSave">Save credential</button>
+            <button class="btn ghost" id="credReset" hidden>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section class="panel" data-panel="settings" hidden>
+      <div class="two-col">
+        <div class="card">
+          <h2 class="section-title">Subnets to scan</h2>
+          <p class="muted small">One row per site. The label appears as the device's site.</p>
+          <div id="subnetRows"></div>
+          <button class="btn ghost" id="addSubnet">Add subnet</button>
+          <div class="form-actions"><button class="btn primary" id="saveSubnets">Save subnets</button></div>
+        </div>
+        <div class="card">
+          <h2 class="section-title">MeshCentral</h2>
+          <label>Server URL <input id="meshUrl" placeholder="wss://remote.northernfruit.com" /></label>
+          <label>Username <input id="meshUser" placeholder="admin" /></label>
+          <label>Password <input id="meshPass" type="password" placeholder="leave blank to keep current" /></label>
+          <label>2FA login token <input id="meshToken" type="password" placeholder="optional" /></label>
+          <label class="switch"><input type="checkbox" id="meshVerify" checked /> Verify TLS certificate</label>
+          <div class="form-actions">
+            <button class="btn primary" id="saveMesh">Save</button>
+            <button class="btn ghost" id="testMesh">Test connection</button>
+          </div>
+          <p class="test-result" id="meshResult"></p>
+        </div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Scan parameters</h2>
+        <p class="muted small">Set via environment / <code>.env</code>. Shown here for reference.</p>
+        <div class="kv" id="scanParams"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Device detail drawer -->
+  <div class="drawer-scrim" id="drawerScrim" hidden></div>
+  <aside class="drawer" id="drawer" hidden aria-label="Device detail"></aside>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="static/app.js"></script>
+</body>
+</html>

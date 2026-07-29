@@ -1,0 +1,18 @@
+# Web stack
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
+pydantic==2.13.4
+pydantic-settings==2.14.2
+
+# Storage / scheduling
+SQLAlchemy==2.0.51
+APScheduler==3.11.3
+
+# Scanning / integration
+impacket==0.13.1          # agentless Windows via WMI over DCOM
+pysnmp==7.1.27            # SNMP (network gear, printers)
+paramiko==5.0.0           # SSH (Linux/Unix)
+websockets==16.1.1        # MeshCentral control API
+mac-vendor-lookup==0.1.15 # MAC OUI -> vendor
+cryptography==49.0.0      # credential encryption at rest
+httpx==0.28.1

@@ -1,0 +1,43 @@
+services:
+  netview:
+    build: .
+    image: netview:latest
+    container_name: netview
+    restart: unless-stopped
+
+    # Host networking is recommended so the scanner can:
+    #   - reach all three sites over the site-to-site VPN (routes live on the host)
+    #   - read MAC addresses via ARP on the local L2 segment
+    #   - run nmap OS detection / SYN scans
+    # With host networking the app binds directly on the host at ${NETVIEW_PORT}.
+    network_mode: host
+
+    # Raw-socket capabilities for nmap ARP/ICMP/SYN and OS fingerprinting.
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./data:/app/data
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,os;urllib.request.urlopen(f\"http://127.0.0.1:{os.environ.get('NETVIEW_PORT','8850')}/healthz\")"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# ---------------------------------------------------------------------------
+# If you cannot use host networking (e.g. Docker Desktop), comment out
+# network_mode/cap_add above and use bridge mode instead:
+#
+#   ports:
+#     - "8850:8850"
+#   cap_add: [NET_RAW, NET_ADMIN]
+#
+# In bridge mode ARP-based MAC discovery and OS detection are limited, and the
+# container must have routes to the remote sites. WMI/SNMP/SSH still work.
+# ---------------------------------------------------------------------------
