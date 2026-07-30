@@ -187,12 +187,11 @@ class MeshCentralClient:
         return out
 
     def device_link(self, nodeid: str) -> str:
-        # MeshCentral deep link to the device panel. nodeid may already carry a
-        # "node//" prefix depending on the source; normalize so we don't double it.
+        # MeshCentral deep link to the device's General panel. viewmode=10 is the
+        # device view; gotonode selects it. nodeid may arrive with a "node//"
+        # prefix depending on the source — strip it so gotonode gets the bare id.
         short = nodeid[len("node//"):] if nodeid.startswith("node//") else nodeid
-        return (f"{self.https_base}/?viewmode=11"
-                f"&gotonode={short}"
-                f"&node=node//{short}")
+        return f"{self.https_base}/?viewmode=10&gotonode={short}"
 
 
 def correlate(devices, mesh_nodes: list[MeshNode], link_fn) -> dict[int, dict]:
